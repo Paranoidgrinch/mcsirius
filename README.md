@@ -43,3 +43,16 @@ The model uses the same geometry and current/field calibration as FLAVIA:
 
 This value is only the predicted center for the later local magnet search.
 The optimizer will not treat magnet current as an independent global parameter.
+## First optimization stage
+
+The first executable optimization chain is intentionally simple:
+
+1. calculate the expected magnet current from ion mass and source energy
+2. run a bounded coarse-to-fine magnet scan around that prediction
+3. restore the best measured magnet setting
+4. scan the Einzel lens while keeping it within 2 kV of extraction
+5. restore the best magnet and Einzel settings
+6. use the magnitude of the Cup 1 current as the optimization score
+
+The scan distances and step sizes remain explicit inputs until suitable
+machine values have been verified experimentally.

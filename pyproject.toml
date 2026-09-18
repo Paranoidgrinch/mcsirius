@@ -7,6 +7,9 @@ name = "mcsirius"
 version = "0.1.0"
 description = "Source-to-Cup-1 beam optimizer for FLAVIA"
 requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt>=1.6,<3",
+]
 
 [project.optional-dependencies]
 dev = [

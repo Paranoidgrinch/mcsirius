@@ -7,6 +7,7 @@ import math
 from typing import Sequence
 
 from .runtime import run_simulation
+from .live_backend import probe_live_hardware
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -33,6 +34,16 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--live-check",
+        action="store_true",
+        help=(
+            "connect to source hardware and print "
+            "readbacks without changing source, magnet "
+            "or Cup selection"
+        ),
+    )
+
     return parser
 
 
@@ -52,8 +63,46 @@ def main(
         )
         return 2
 
-    # During commissioning the CLI deliberately defaults to
-    # simulation. Live hardware will require an explicit flag.
+    if args.live_check:
+        try:
+            report = probe_live_hardware()
+        except Exception as exc:
+            print()
+            print("mcsirius live hardware check")
+            print("============================")
+            print(f"FAILED: {exc}")
+            print()
+            return 1
+
+        print()
+        print("mcsirius live hardware check")
+        print("============================")
+        print(f"Sputter     : {report.sputter_kv:.3f} kV")
+        print(f"Extraction  : {report.extraction_kv:.3f} kV")
+        print(f"Einzel      : {report.einzel_kv:.3f} kV")
+        print(
+            "Magnet      : "
+            f"{report.magnet_current_a:.4f} A"
+        )
+        print(
+            "Selected Cup: "
+            f"{report.selected_cup}"
+        )
+        print(
+            "Keithley    : "
+            f"{report.keithley_current_a * 1e9:.3f} nA"
+        )
+        print()
+        print(
+            "No source-voltage, magnet-current or "
+            "Cup-selection command was sent."
+        )
+        print()
+
+        return 0
+
+    # During commissioning the normal CLI deliberately defaults
+    # to simulation.
     result = run_simulation(mass_u)
 
     point = (

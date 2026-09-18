@@ -9,11 +9,14 @@ from .measurement import (
     MeasurementConfig,
     RobustCup1Hardware,
 )
-from .scan import LocalScanConfig
+from .scan import (
+    AdaptiveScanConfig,
+    ScanConfig,
+)
 from .session import (
     ConvergenceConfig,
     OptimizationSessionResult,
-    run_until_converged,
+    run_single_pass,
 )
 from .simulation import SimulatedHardware
 from .startup import (
@@ -28,10 +31,10 @@ class OptimizationProfile:
     magnet_lower_a: float
     magnet_upper_a: float
 
-    magnet_scan: LocalScanConfig
-    einzel_scan: LocalScanConfig
-    extraction_scan: LocalScanConfig
-    sputter_scan: LocalScanConfig
+    magnet_scan: ScanConfig
+    einzel_scan: ScanConfig
+    extraction_scan: ScanConfig
+    sputter_scan: ScanConfig
 
     measurement: MeasurementConfig
     convergence: ConvergenceConfig
@@ -50,32 +53,28 @@ SIMULATION_PROFILE = OptimizationProfile(
     magnet_lower_a=0.0,
     magnet_upper_a=120.0,
 
-    magnet_scan=LocalScanConfig(
-        coarse_radius=0.6,
-        coarse_step=0.2,
-        fine_radius=0.2,
-        fine_step=0.05,
+    magnet_scan=AdaptiveScanConfig(
+        initial_step=0.20,
+        min_step=0.05,
+        max_evaluations=7,
     ),
 
-    einzel_scan=LocalScanConfig(
-        coarse_radius=2.0,
-        coarse_step=0.5,
-        fine_radius=0.5,
-        fine_step=0.1,
+    einzel_scan=AdaptiveScanConfig(
+        initial_step=0.50,
+        min_step=0.10,
+        max_evaluations=7,
     ),
 
-    extraction_scan=LocalScanConfig(
-        coarse_radius=4.0,
-        coarse_step=1.0,
-        fine_radius=0.5,
-        fine_step=0.25,
+    extraction_scan=AdaptiveScanConfig(
+        initial_step=1.00,
+        min_step=0.25,
+        max_evaluations=9,
     ),
 
-    sputter_scan=LocalScanConfig(
-        coarse_radius=3.0,
-        coarse_step=1.0,
-        fine_radius=0.5,
-        fine_step=0.25,
+    sputter_scan=AdaptiveScanConfig(
+        initial_step=1.00,
+        min_step=0.25,
+        max_evaluations=8,
     ),
 
     measurement=MeasurementConfig(
@@ -119,7 +118,7 @@ def run_simulation(
         sleep=lambda _: None,
     )
 
-    session = run_until_converged(
+    session = run_single_pass(
         hardware,
         mass_u=mass_u,
         operating_point=(
@@ -137,7 +136,6 @@ def run_simulation(
             profile.extraction_scan
         ),
         sputter_scan=profile.sputter_scan,
-        convergence=profile.convergence,
     )
 
     return RuntimeResult(

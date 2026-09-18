@@ -16,9 +16,9 @@ from .magnet import (
     calculate_magnet_setpoint,
 )
 from .scan import (
-    LocalScanConfig,
+    ScanConfig,
     ScanResult,
-    maximize_1d,
+    maximize_parameter,
 )
 
 
@@ -267,7 +267,7 @@ def _scan_magnet_for_operating_point(
     operating_point: OperatingPoint,
     magnet_lower_a: float,
     magnet_upper_a: float,
-    magnet_scan: LocalScanConfig,
+    magnet_scan: ScanConfig,
 ) -> tuple[MagnetSetpoint, ScanResult]:
 
     seed = calculate_magnet_setpoint(
@@ -297,7 +297,7 @@ def _scan_magnet_for_operating_point(
 
         return _cup1_score(hardware)
 
-    result = maximize_1d(
+    result = maximize_parameter(
         measure,
         start=seed.current_a,
         lower=magnet_lower_a,
@@ -363,9 +363,9 @@ def optimize_source_voltages(
     operating_point: OperatingPoint,
     magnet_lower_a: float,
     magnet_upper_a: float,
-    magnet_scan: LocalScanConfig,
-    extraction_scan: LocalScanConfig,
-    sputter_scan: LocalScanConfig,
+    magnet_scan: ScanConfig,
+    extraction_scan: ScanConfig,
+    sputter_scan: ScanConfig,
     limits: MachineLimits = DEFAULT_LIMITS,
     voltage_pair_step_kv: float = 0.5,
     magnet_correction_a: float | None = None,
@@ -502,7 +502,7 @@ def optimize_source_voltages(
 
         return _cup1_score(hardware)
 
-    extraction_result = maximize_1d(
+    extraction_result = maximize_parameter(
         measure_extraction,
         start=(
             operating_point.extraction_kv
@@ -519,34 +519,6 @@ def optimize_source_voltages(
     extraction_best = current_extraction
     einzel_after_extraction = (
         current_einzel
-    )
-
-    extraction_point = OperatingPoint(
-        sputter_kv=current_sputter,
-        extraction_kv=extraction_best,
-        einzel_kv=einzel_after_extraction,
-    )
-
-    extraction_seed, extraction_magnet_scan = (
-        _scan_magnet_for_operating_point(
-            hardware,
-            mass_u=mass_u,
-            operating_point=(
-                extraction_point
-            ),
-            magnet_lower_a=(
-                magnet_lower_a
-            ),
-            magnet_upper_a=(
-                magnet_upper_a
-            ),
-            magnet_scan=magnet_scan,
-        )
-    )
-
-    correction_a = (
-        extraction_magnet_scan.best_position
-        - extraction_seed.current_a
     )
 
     def measure_sputter(
@@ -595,7 +567,7 @@ def optimize_source_voltages(
 
         return _cup1_score(hardware)
 
-    sputter_result = maximize_1d(
+    sputter_result = maximize_parameter(
         measure_sputter,
         start=(
             operating_point.sputter_kv

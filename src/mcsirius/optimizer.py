@@ -15,9 +15,9 @@ from .magnet import (
     calculate_magnet_setpoint,
 )
 from .scan import (
-    LocalScanConfig,
+    ScanConfig,
     ScanResult,
-    maximize_1d,
+    maximize_parameter,
 )
 
 
@@ -72,8 +72,8 @@ def optimize_magnet_and_einzel(
     operating_point: OperatingPoint,
     magnet_lower_a: float,
     magnet_upper_a: float,
-    magnet_scan: LocalScanConfig,
-    einzel_scan: LocalScanConfig,
+    magnet_scan: ScanConfig,
+    einzel_scan: ScanConfig,
     limits: MachineLimits = DEFAULT_LIMITS,
 ) -> FrontendOptimizationResult:
     """
@@ -114,7 +114,7 @@ def optimize_magnet_and_einzel(
         hardware.set_magnet_current(current_a)
         return _cup1_score(hardware)
 
-    magnet_result = maximize_1d(
+    magnet_result = maximize_parameter(
         measure_magnet,
         start=magnet_seed.current_a,
         lower=magnet_lower_a,
@@ -140,7 +140,7 @@ def optimize_magnet_and_einzel(
         hardware.set_einzel_voltage(voltage_kv)
         return _cup1_score(hardware)
 
-    einzel_result = maximize_1d(
+    einzel_result = maximize_parameter(
         measure_einzel,
         start=operating_point.einzel_kv,
         lower=einzel_lower,
@@ -162,3 +162,61 @@ def optimize_magnet_and_einzel(
         einzel_scan=einzel_result,
         final_cup1_score=_cup1_score(hardware),
     )
+
+
+def optimize_einzel_at_fixed_magnet(
+    hardware: Cup1Hardware,
+    *,
+    operating_point: OperatingPoint,
+    magnet_seed: MagnetSetpoint,
+    magnet_result: ScanResult,
+    einzel_scan: ScanConfig,
+    limits: MachineLimits = DEFAULT_LIMITS,
+) -> FrontendOptimizationResult:
+    """
+    Re-focus the Einzel lens while keeping the already refined
+    magnet setting fixed.
+    """
+
+    limits.validate(operating_point)
+
+    hardware.set_magnet_current(
+        magnet_result.best_position
+    )
+
+    einzel_lower, einzel_upper = (
+        limits.einzel_window(
+            operating_point.extraction_kv
+        )
+    )
+
+    def measure_einzel(
+        voltage_kv: float,
+    ) -> float:
+        hardware.set_einzel_voltage(
+            voltage_kv
+        )
+        return _cup1_score(hardware)
+
+    einzel_result = maximize_parameter(
+        measure_einzel,
+        start=operating_point.einzel_kv,
+        lower=einzel_lower,
+        upper=einzel_upper,
+        config=einzel_scan,
+    )
+
+    hardware.set_einzel_voltage(
+        einzel_result.best_position
+    )
+    hardware.set_magnet_current(
+        magnet_result.best_position
+    )
+
+    return FrontendOptimizationResult(
+        magnet_seed=magnet_seed,
+        magnet_scan=magnet_result,
+        einzel_scan=einzel_result,
+        final_cup1_score=_cup1_score(hardware),
+    )
+

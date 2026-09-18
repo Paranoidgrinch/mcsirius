@@ -12,7 +12,7 @@ from .machine import (
     MachineLimits,
     OperatingPoint,
 )
-from .scan import LocalScanConfig
+from .scan import ScanConfig
 from .source import SourceHardware
 
 
@@ -98,10 +98,10 @@ def run_until_converged(
     operating_point: OperatingPoint,
     magnet_lower_a: float,
     magnet_upper_a: float,
-    magnet_scan: LocalScanConfig,
-    einzel_scan: LocalScanConfig,
-    extraction_scan: LocalScanConfig,
-    sputter_scan: LocalScanConfig,
+    magnet_scan: ScanConfig,
+    einzel_scan: ScanConfig,
+    extraction_scan: ScanConfig,
+    sputter_scan: ScanConfig,
     convergence: ConvergenceConfig = ConvergenceConfig(),
     limits: MachineLimits = DEFAULT_LIMITS,
     voltage_pair_step_kv: float = 0.5,
@@ -203,3 +203,73 @@ def run_until_converged(
         ),
         converged=converged,
     )
+
+
+def run_single_pass(
+    hardware: SourceHardware,
+    *,
+    mass_u: float,
+    operating_point: OperatingPoint,
+    magnet_lower_a: float,
+    magnet_upper_a: float,
+    magnet_scan: ScanConfig,
+    einzel_scan: ScanConfig,
+    extraction_scan: ScanConfig,
+    sputter_scan: ScanConfig,
+    limits: MachineLimits = DEFAULT_LIMITS,
+    voltage_pair_step_kv: float = 0.5,
+) -> OptimizationSessionResult:
+    """
+    Run one complete coordinate-optimization pass.
+
+    Each one-dimensional adaptive search itself converges to
+    its configured minimum step, so the fast runtime does not
+    automatically repeat the entire expensive machine cycle.
+    """
+
+    limits.validate(operating_point)
+
+    result = run_optimization_cycle(
+        hardware,
+        mass_u=mass_u,
+        operating_point=operating_point,
+        magnet_lower_a=magnet_lower_a,
+        magnet_upper_a=magnet_upper_a,
+        magnet_scan=magnet_scan,
+        einzel_scan=einzel_scan,
+        extraction_scan=extraction_scan,
+        sputter_scan=sputter_scan,
+        limits=limits,
+        voltage_pair_step_kv=voltage_pair_step_kv,
+    )
+
+    score = float(result.final_cup1_score)
+
+    if (
+        not math.isfinite(score)
+        or score < 0.0
+    ):
+        raise ValueError(
+            "Optimization cycle returned "
+            "an invalid Cup-1 score."
+        )
+
+    summary = CycleSummary(
+        cycle_number=1,
+        start_operating_point=operating_point,
+        final_operating_point=(
+            result.final_operating_point
+        ),
+        final_cup1_score=score,
+        relative_improvement=None,
+    )
+
+    return OptimizationSessionResult(
+        cycles=(summary,),
+        final_operating_point=(
+            result.final_operating_point
+        ),
+        final_cup1_score=score,
+        converged=True,
+    )
+

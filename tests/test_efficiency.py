@@ -17,5 +17,5 @@ def test_complete_run_uses_reasonable_measurement_count():
     )
 
     # Guard against accidentally restoring the old nested
-    # full-magnet-scan behaviour, which used 895 measurements.
-    assert result.measurement_count < 300
+    # full-magnet-scan behaviour, which used hundreds of measurements.
+    assert result.measurement_count < 60

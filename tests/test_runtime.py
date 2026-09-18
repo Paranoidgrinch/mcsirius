@@ -61,7 +61,7 @@ def test_simulation_converges():
 
     assert result.session.converged is True
 
-    assert len(result.session.cycles) >= 2
+    assert len(result.session.cycles) == 1
 
 
 def test_different_mass_uses_same_source_optimizer():

@@ -56,3 +56,47 @@ The first executable optimization chain is intentionally simple:
 
 The scan distances and step sizes remain explicit inputs until suitable
 machine values have been verified experimentally.
+
+## Optimization cycle
+
+A complete optimization pass follows a fixed, inspectable sequence:
+
+1. calculate and locally optimize the analyzing magnet
+2. focus the Einzel lens on Cup 1
+3. optimize extraction voltage
+4. recalculate and locally optimize the magnet for each extraction candidate
+5. optimize sputter voltage
+6. recalculate and locally optimize the magnet for each sputter candidate
+7. finish with another magnet and Einzel optimization
+
+Extraction and Einzel are moved together in bounded intermediate steps so that
+their voltage difference never exceeds the configured machine limit.
+
+## Cup 1 measurement
+
+Real optimization should not rely on one instantaneous Keithley value.
+
+The measurement layer can therefore wrap the hardware and:
+
+- wait for the beam to settle after a changed setting
+- acquire several current samples
+- use the median current as the optimization value
+- calculate the median absolute deviation (MAD) as a simple noise estimate
+- retain measurement history for later diagnostics
+
+The timing and sample count remain configurable until the real Keithley update
+rate and useful settling times have been measured on FLAVIA.
+
+## Convergence
+
+The optimizer can repeat complete source-to-Cup-1 cycles.
+
+A run stops when either:
+
+- the configured maximum number of cycles has been reached, or
+- the relative Cup-1 improvement from one complete cycle to the next falls
+  below the configured threshold
+
+The default limit is three complete cycles with a one-percent relative
+improvement threshold. These values are configuration defaults rather than
+hard machine limits.

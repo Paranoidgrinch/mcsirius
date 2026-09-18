@@ -23,8 +23,6 @@ from .scan import (
 
 
 class SourceHardware(Protocol):
-    """Hardware operations required for source optimization."""
-
     def set_sputter_voltage(
         self,
         voltage_kv: float,
@@ -67,7 +65,9 @@ class SourceOptimizationResult:
 def _cup1_score(
     hardware: SourceHardware,
 ) -> float:
-    return abs(float(hardware.read_cup1_current()))
+    return abs(
+        float(hardware.read_cup1_current())
+    )
 
 
 def _validate_voltage_pair(
@@ -77,10 +77,14 @@ def _validate_voltage_pair(
     limits: MachineLimits,
 ) -> None:
     if not math.isfinite(extraction_kv):
-        raise ValueError("Extraction voltage must be finite.")
+        raise ValueError(
+            "Extraction voltage must be finite."
+        )
 
     if not math.isfinite(einzel_kv):
-        raise ValueError("Einzel voltage must be finite.")
+        raise ValueError(
+            "Einzel voltage must be finite."
+        )
 
     if not (
         limits.extraction_min_kv
@@ -101,7 +105,9 @@ def _validate_voltage_pair(
         )
 
     if (
-        abs(einzel_kv - extraction_kv)
+        abs(
+            einzel_kv - extraction_kv
+        )
         > limits.max_einzel_delta_kv
     ):
         raise ValueError(
@@ -120,10 +126,6 @@ def move_extraction_einzel(
     limits: MachineLimits = DEFAULT_LIMITS,
     max_step_kv: float = 0.5,
 ) -> tuple[float, float]:
-    """
-    Move extraction and Einzel together without violating
-    their maximum allowed separation at an intermediate write.
-    """
 
     _validate_voltage_pair(
         extraction_kv=current_extraction_kv,
@@ -150,6 +152,7 @@ def move_extraction_einzel(
         target_extraction_kv
         - current_extraction_kv
     )
+
     einzel_delta = (
         target_einzel_kv
         - current_einzel_kv
@@ -181,13 +184,17 @@ def move_extraction_einzel(
 
     tolerance = 1e-12
 
-    for index in range(1, step_count + 1):
+    for index in range(
+        1,
+        step_count + 1,
+    ):
         fraction = index / step_count
 
         next_extraction = (
             start_extraction
             + extraction_delta * fraction
         )
+
         next_einzel = (
             start_einzel
             + einzel_delta * fraction
@@ -215,23 +222,31 @@ def move_extraction_einzel(
             hardware.set_extraction_voltage(
                 next_extraction
             )
-            current_extraction = next_extraction
+
+            current_extraction = (
+                next_extraction
+            )
 
             hardware.set_einzel_voltage(
                 next_einzel
             )
+
             current_einzel = next_einzel
 
         elif einzel_first_safe:
             hardware.set_einzel_voltage(
                 next_einzel
             )
+
             current_einzel = next_einzel
 
             hardware.set_extraction_voltage(
                 next_extraction
             )
-            current_extraction = next_extraction
+
+            current_extraction = (
+                next_extraction
+            )
 
         else:
             raise RuntimeError(
@@ -254,10 +269,13 @@ def _scan_magnet_for_operating_point(
     magnet_upper_a: float,
     magnet_scan: LocalScanConfig,
 ) -> tuple[MagnetSetpoint, ScanResult]:
+
     seed = calculate_magnet_setpoint(
         mass_u=mass_u,
         sputter_kv=operating_point.sputter_kv,
-        extraction_kv=operating_point.extraction_kv,
+        extraction_kv=(
+            operating_point.extraction_kv
+        ),
     )
 
     if not (
@@ -273,7 +291,10 @@ def _scan_magnet_for_operating_point(
     def measure(
         current_a: float,
     ) -> float:
-        hardware.set_magnet_current(current_a)
+        hardware.set_magnet_current(
+            current_a
+        )
+
         return _cup1_score(hardware)
 
     result = maximize_1d(
@@ -291,6 +312,50 @@ def _scan_magnet_for_operating_point(
     return seed, result
 
 
+def _set_tracked_magnet(
+    hardware: SourceHardware,
+    *,
+    mass_u: float,
+    operating_point: OperatingPoint,
+    correction_a: float,
+    magnet_lower_a: float,
+    magnet_upper_a: float,
+) -> MagnetSetpoint:
+    """
+    Follow source-energy changes with the physics model plus
+    the latest experimentally measured magnet correction.
+    """
+
+    seed = calculate_magnet_setpoint(
+        mass_u=mass_u,
+        sputter_kv=operating_point.sputter_kv,
+        extraction_kv=(
+            operating_point.extraction_kv
+        ),
+    )
+
+    current_a = (
+        seed.current_a
+        + correction_a
+    )
+
+    if not (
+        magnet_lower_a
+        <= current_a
+        <= magnet_upper_a
+    ):
+        raise ValueError(
+            "Tracked magnet current lies outside "
+            "the allowed magnet bounds."
+        )
+
+    hardware.set_magnet_current(
+        current_a
+    )
+
+    return seed
+
+
 def optimize_source_voltages(
     hardware: SourceHardware,
     *,
@@ -303,15 +368,17 @@ def optimize_source_voltages(
     sputter_scan: LocalScanConfig,
     limits: MachineLimits = DEFAULT_LIMITS,
     voltage_pair_step_kv: float = 0.5,
+    magnet_correction_a: float | None = None,
 ) -> SourceOptimizationResult:
     """
     Optimize extraction and sputter one dimension at a time.
 
-    Every source-energy change is followed by a local magnet
-    search around the newly calculated mass/energy prediction.
+    The magnet is not fully scanned at every voltage candidate.
+    Instead, the mass/energy model is shifted by the most
+    recently measured magnet correction.
 
-    During extraction tuning, the current Einzel/extraction
-    offset is preserved where possible.
+    A full local magnet scan is performed again after each
+    source-voltage dimension has found its best candidate.
     """
 
     limits.validate(operating_point)
@@ -319,9 +386,11 @@ def optimize_source_voltages(
     current_extraction = (
         operating_point.extraction_kv
     )
+
     current_einzel = (
         operating_point.einzel_kv
     )
+
     current_sputter = (
         operating_point.sputter_kv
     )
@@ -331,16 +400,46 @@ def optimize_source_voltages(
         - operating_point.extraction_kv
     )
 
-    latest_seed: MagnetSetpoint | None = None
-    latest_magnet_scan: ScanResult | None = None
+    if magnet_correction_a is None:
+        initial_seed, initial_scan = (
+            _scan_magnet_for_operating_point(
+                hardware,
+                mass_u=mass_u,
+                operating_point=(
+                    operating_point
+                ),
+                magnet_lower_a=(
+                    magnet_lower_a
+                ),
+                magnet_upper_a=(
+                    magnet_upper_a
+                ),
+                magnet_scan=magnet_scan,
+            )
+        )
+
+        correction_a = (
+            initial_scan.best_position
+            - initial_seed.current_a
+        )
+
+    else:
+        correction_a = float(
+            magnet_correction_a
+        )
+
+        if not math.isfinite(
+            correction_a
+        ):
+            raise ValueError(
+                "Magnet correction must be finite."
+            )
 
     def measure_extraction(
         extraction_kv: float,
     ) -> float:
         nonlocal current_extraction
         nonlocal current_einzel
-        nonlocal latest_seed
-        nonlocal latest_magnet_scan
 
         einzel_lower, einzel_upper = (
             limits.einzel_window(
@@ -365,57 +464,95 @@ def optimize_source_voltages(
             current_extraction_kv=(
                 current_extraction
             ),
-            current_einzel_kv=current_einzel,
+            current_einzel_kv=(
+                current_einzel
+            ),
             target_extraction_kv=(
                 extraction_kv
             ),
-            target_einzel_kv=target_einzel,
+            target_einzel_kv=(
+                target_einzel
+            ),
             limits=limits,
-            max_step_kv=voltage_pair_step_kv,
+            max_step_kv=(
+                voltage_pair_step_kv
+            ),
         )
 
         point = OperatingPoint(
             sputter_kv=current_sputter,
-            extraction_kv=current_extraction,
+            extraction_kv=(
+                current_extraction
+            ),
             einzel_kv=current_einzel,
         )
 
-        (
-            latest_seed,
-            latest_magnet_scan,
-        ) = _scan_magnet_for_operating_point(
+        _set_tracked_magnet(
             hardware,
             mass_u=mass_u,
             operating_point=point,
-            magnet_lower_a=magnet_lower_a,
-            magnet_upper_a=magnet_upper_a,
-            magnet_scan=magnet_scan,
+            correction_a=correction_a,
+            magnet_lower_a=(
+                magnet_lower_a
+            ),
+            magnet_upper_a=(
+                magnet_upper_a
+            ),
         )
 
-        return latest_magnet_scan.best_score
+        return _cup1_score(hardware)
 
     extraction_result = maximize_1d(
         measure_extraction,
-        start=operating_point.extraction_kv,
+        start=(
+            operating_point.extraction_kv
+        ),
         lower=limits.extraction_min_kv,
         upper=limits.extraction_max_kv,
         config=extraction_scan,
     )
 
-    # Restore and re-evaluate the best extraction point.
     measure_extraction(
         extraction_result.best_position
     )
 
     extraction_best = current_extraction
-    einzel_after_extraction = current_einzel
+    einzel_after_extraction = (
+        current_einzel
+    )
+
+    extraction_point = OperatingPoint(
+        sputter_kv=current_sputter,
+        extraction_kv=extraction_best,
+        einzel_kv=einzel_after_extraction,
+    )
+
+    extraction_seed, extraction_magnet_scan = (
+        _scan_magnet_for_operating_point(
+            hardware,
+            mass_u=mass_u,
+            operating_point=(
+                extraction_point
+            ),
+            magnet_lower_a=(
+                magnet_lower_a
+            ),
+            magnet_upper_a=(
+                magnet_upper_a
+            ),
+            magnet_scan=magnet_scan,
+        )
+    )
+
+    correction_a = (
+        extraction_magnet_scan.best_position
+        - extraction_seed.current_a
+    )
 
     def measure_sputter(
         sputter_kv: float,
     ) -> float:
         nonlocal current_sputter
-        nonlocal latest_seed
-        nonlocal latest_magnet_scan
 
         if not (
             limits.sputter_min_kv
@@ -430,49 +567,47 @@ def optimize_source_voltages(
         hardware.set_sputter_voltage(
             sputter_kv
         )
+
         current_sputter = sputter_kv
 
         point = OperatingPoint(
             sputter_kv=current_sputter,
-            extraction_kv=extraction_best,
-            einzel_kv=einzel_after_extraction,
+            extraction_kv=(
+                extraction_best
+            ),
+            einzel_kv=(
+                einzel_after_extraction
+            ),
         )
 
-        (
-            latest_seed,
-            latest_magnet_scan,
-        ) = _scan_magnet_for_operating_point(
+        _set_tracked_magnet(
             hardware,
             mass_u=mass_u,
             operating_point=point,
-            magnet_lower_a=magnet_lower_a,
-            magnet_upper_a=magnet_upper_a,
-            magnet_scan=magnet_scan,
+            correction_a=correction_a,
+            magnet_lower_a=(
+                magnet_lower_a
+            ),
+            magnet_upper_a=(
+                magnet_upper_a
+            ),
         )
 
-        return latest_magnet_scan.best_score
+        return _cup1_score(hardware)
 
     sputter_result = maximize_1d(
         measure_sputter,
-        start=operating_point.sputter_kv,
+        start=(
+            operating_point.sputter_kv
+        ),
         lower=limits.sputter_min_kv,
         upper=limits.sputter_max_kv,
         config=sputter_scan,
     )
 
-    # Restore and re-evaluate the best sputter point.
     measure_sputter(
         sputter_result.best_position
     )
-
-    if (
-        latest_seed is None
-        or latest_magnet_scan is None
-    ):
-        raise RuntimeError(
-            "Source optimization completed without "
-            "a magnet result."
-        )
 
     final_point = OperatingPoint(
         sputter_kv=current_sputter,
@@ -482,12 +617,39 @@ def optimize_source_voltages(
 
     limits.validate(final_point)
 
+    final_seed, final_magnet_scan = (
+        _scan_magnet_for_operating_point(
+            hardware,
+            mass_u=mass_u,
+            operating_point=final_point,
+            magnet_lower_a=(
+                magnet_lower_a
+            ),
+            magnet_upper_a=(
+                magnet_upper_a
+            ),
+            magnet_scan=magnet_scan,
+        )
+    )
+
+    final_score = _cup1_score(
+        hardware
+    )
+
     return SourceOptimizationResult(
-        start_operating_point=operating_point,
-        extraction_scan=extraction_result,
+        start_operating_point=(
+            operating_point
+        ),
+        extraction_scan=(
+            extraction_result
+        ),
         sputter_scan=sputter_result,
-        final_operating_point=final_point,
-        final_magnet_seed=latest_seed,
-        final_magnet_scan=latest_magnet_scan,
-        final_cup1_score=_cup1_score(hardware),
+        final_operating_point=(
+            final_point
+        ),
+        final_magnet_seed=final_seed,
+        final_magnet_scan=(
+            final_magnet_scan
+        ),
+        final_cup1_score=final_score,
     )

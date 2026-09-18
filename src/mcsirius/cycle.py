@@ -88,6 +88,10 @@ def run_optimization_cycle(
         hardware,
         mass_u=mass_u,
         operating_point=focused_point,
+        magnet_correction_a=(
+            initial_focus.magnet_scan.best_position
+            - initial_focus.magnet_seed.current_a
+        ),
         magnet_lower_a=magnet_lower_a,
         magnet_upper_a=magnet_upper_a,
         magnet_scan=magnet_scan,

@@ -41,6 +41,9 @@ class FlaviaAdapterConfig:
     cup_select_timeout_s: float = 5.0
     cup_poll_interval_s: float = 0.05
 
+    magnet_rate_a_per_s: float = 1.0
+    magnet_update_period_s: float = 0.25
+
     def validate(self) -> None:
         if (
             type(self.cup_number) is not int
@@ -62,6 +65,14 @@ class FlaviaAdapterConfig:
             (
                 "cup_poll_interval_s",
                 self.cup_poll_interval_s,
+            ),
+            (
+                "magnet_rate_a_per_s",
+                self.magnet_rate_a_per_s,
+            ),
+            (
+                "magnet_update_period_s",
+                self.magnet_update_period_s,
             ),
         ):
             if (
@@ -310,20 +321,67 @@ class FlaviaHardware:
         self,
         current_a: float,
     ) -> None:
-        current_a = float(current_a)
+        """
+        Move the analyzing magnet with a bounded software slew.
+
+        Large current changes are therefore never sent as one
+        instantaneous setpoint. Small optimizer corrections use
+        exactly the same path.
+        """
+
+        target_a = float(current_a)
 
         if (
-            not math.isfinite(current_a)
-            or current_a < 0.0
+            not math.isfinite(target_a)
+            or target_a < 0.0
         ):
             raise ValueError(
                 "Magnet current must be finite "
                 "and non-negative."
             )
 
-        self.backend.set_magnet_current(
-            current_a
+        start_a = self.read_magnet_current()
+
+        delta_a = target_a - start_a
+
+        if delta_a == 0.0:
+            return
+
+        duration_s = (
+            abs(delta_a)
+            / self.config.magnet_rate_a_per_s
         )
+
+        step_count = max(
+            1,
+            math.ceil(
+                duration_s
+                / self.config.magnet_update_period_s
+            ),
+        )
+
+        step_duration_s = (
+            duration_s / step_count
+        )
+
+        for index in range(
+            1,
+            step_count + 1,
+        ):
+            fraction = index / step_count
+
+            next_a = (
+                start_a
+                + delta_a * fraction
+            )
+
+            self.backend.set_magnet_current(
+                next_a
+            )
+
+            self.sleep(
+                step_duration_s
+            )
 
     def read_operating_point(
         self,

@@ -8,6 +8,7 @@ from typing import Sequence
 
 from .runtime import run_simulation
 from .live_backend import probe_live_hardware
+from .live_prepare import prepare_live_machine
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -44,6 +45,16 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--live-prepare",
+        action="store_true",
+        help=(
+            "prepare the real machine at the deterministic "
+            "source and magnet starting point without running "
+            "the optimizer"
+        ),
+    )
+
     return parser
 
 
@@ -62,6 +73,60 @@ def main(
             "error: ion mass must be greater than zero"
         )
         return 2
+
+    if args.live_prepare:
+        try:
+            report = prepare_live_machine(
+                mass_u
+            )
+        except Exception as exc:
+            print()
+            print("mcsirius live preparation")
+            print("=========================")
+            print(f"FAILED: {exc}")
+            print()
+            return 1
+
+        source = (
+            report.final_source_readback
+        )
+
+        print()
+        print("mcsirius live preparation")
+        print("=========================")
+        print("MODE        : LIVE PREPARE")
+        print(f"Ion mass    : {mass_u:g} u")
+        print(
+            "Sputter     : "
+            f"{source.sputter_kv:.3f} kV"
+        )
+        print(
+            "Extraction  : "
+            f"{source.extraction_kv:.3f} kV"
+        )
+        print(
+            "Einzel      : "
+            f"{source.einzel_kv:.3f} kV"
+        )
+        print(
+            "Magnet calc : "
+            f"{report.magnet.current_a:.4f} A"
+        )
+        print(
+            "Magnet meas : "
+            f"{report.final_magnet_readback_a:.4f} A"
+        )
+        print(
+            "Cup 1       : "
+            f"{report.cup_current_a * 1e9:.3f} nA"
+        )
+        print()
+        print(
+            "Optimizer was NOT started."
+        )
+        print()
+
+        return 0
 
     if args.live_check:
         try:

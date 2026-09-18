@@ -580,8 +580,8 @@ class KeithleyWorker(
                     "READ?"
                 )
 
-                current_a = abs(
-                    float(response)
+                current_a = float(
+                    response
                 )
 
                 self.model.update(

@@ -44,6 +44,11 @@ class FlaviaAdapterConfig:
     magnet_rate_a_per_s: float = 1.0
     magnet_update_period_s: float = 0.25
 
+    magnet_settle_tolerance_a: float = 0.05
+    magnet_settle_timeout_s: float = 15.0
+    magnet_settle_poll_s: float = 0.05
+    magnet_settle_samples: int = 2
+
     def validate(self) -> None:
         if (
             type(self.cup_number) is not int
@@ -74,6 +79,18 @@ class FlaviaAdapterConfig:
                 "magnet_update_period_s",
                 self.magnet_update_period_s,
             ),
+            (
+                "magnet_settle_tolerance_a",
+                self.magnet_settle_tolerance_a,
+            ),
+            (
+                "magnet_settle_timeout_s",
+                self.magnet_settle_timeout_s,
+            ),
+            (
+                "magnet_settle_poll_s",
+                self.magnet_settle_poll_s,
+            ),
         ):
             if (
                 not math.isfinite(value)
@@ -82,6 +99,16 @@ class FlaviaAdapterConfig:
                 raise ValueError(
                     f"{name} must be finite and greater than zero."
                 )
+
+
+        if (
+            type(self.magnet_settle_samples) is not int
+            or self.magnet_settle_samples < 1
+        ):
+            raise ValueError(
+                "magnet_settle_samples must be "
+                "a positive integer."
+            )
 
 
 class FlaviaHardware:
@@ -317,6 +344,105 @@ class FlaviaHardware:
             voltage_kv * 1000.0,
         )
 
+    def wait_for_magnet_settled(
+        self,
+        target_a: float,
+    ) -> float:
+        """
+        Wait until the real magnet-current readback has reached
+        the requested current and remains there for multiple new
+        readback samples.
+        """
+
+        target_a = float(target_a)
+
+        deadline = (
+            self.monotonic()
+            + self.config.magnet_settle_timeout_s
+        )
+
+        stable_samples = 0
+        last_timestamp = object()
+        last_value = None
+
+        while True:
+            channel = self._channel(
+                MAGNET_MEAS_CHANNEL
+            )
+
+            if channel.value is None:
+                stable_samples = 0
+
+            else:
+                try:
+                    value = float(
+                        channel.value
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    raise FlaviaHardwareError(
+                        "Magnet-current readback "
+                        "is not numeric."
+                    ) from exc
+
+                if not math.isfinite(value):
+                    raise FlaviaHardwareError(
+                        "Magnet-current readback "
+                        "is not finite."
+                    )
+
+                timestamp = getattr(
+                    channel,
+                    "timestamp",
+                    None,
+                )
+
+                is_new_sample = (
+                    timestamp is None
+                    or timestamp != last_timestamp
+                )
+
+                if is_new_sample:
+                    last_timestamp = timestamp
+                    last_value = value
+
+                    if (
+                        abs(value - target_a)
+                        <= self.config.magnet_settle_tolerance_a
+                    ):
+                        stable_samples += 1
+                    else:
+                        stable_samples = 0
+
+                    if (
+                        stable_samples
+                        >= self.config.magnet_settle_samples
+                    ):
+                        return value
+
+            if self.monotonic() >= deadline:
+                if last_value is None:
+                    detail = "no valid readback"
+                else:
+                    detail = (
+                        f"last readback "
+                        f"{last_value:.4f} A"
+                    )
+
+                raise FlaviaHardwareError(
+                    "Magnet did not settle at "
+                    f"{target_a:.4f} A within "
+                    f"{self.config.magnet_settle_timeout_s:.1f} s "
+                    f"({detail})."
+                )
+
+            self.sleep(
+                self.config.magnet_settle_poll_s
+            )
+
+
     def set_magnet_current(
         self,
         current_a: float,
@@ -382,6 +508,10 @@ class FlaviaHardware:
             self.sleep(
                 step_duration_s
             )
+
+        self.wait_for_magnet_settled(
+            target_a
+        )
 
     def read_operating_point(
         self,

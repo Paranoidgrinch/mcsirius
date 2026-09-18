@@ -47,6 +47,7 @@ def test_large_magnet_change_is_ramped():
         config=FlaviaAdapterConfig(
             magnet_rate_a_per_s=1.0,
             magnet_update_period_s=0.25,
+            magnet_settle_samples=1,
         ),
         sleep=sleeps.append,
     )
@@ -83,6 +84,7 @@ def test_small_magnet_change_uses_same_rate_limit():
         config=FlaviaAdapterConfig(
             magnet_rate_a_per_s=1.0,
             magnet_update_period_s=0.25,
+            magnet_settle_samples=1,
         ),
         sleep=sleeps.append,
     )

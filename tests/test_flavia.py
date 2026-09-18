@@ -82,6 +82,13 @@ class FakeBackend:
     ):
         self.magnet_writes.append(value)
 
+        channel = self.model.channels[
+            "magnet_current_meas"
+        ]
+
+        channel.value = value
+        channel.timestamp += 1.0
+
 
 def make_hardware(
     backend=None,
@@ -91,6 +98,9 @@ def make_hardware(
 
     hardware = FlaviaHardware(
         backend,
+        config=FlaviaAdapterConfig(
+            magnet_settle_samples=1,
+        ),
         wall_clock=lambda: 100.5,
         monotonic=lambda: 10.0,
         sleep=lambda _: None,

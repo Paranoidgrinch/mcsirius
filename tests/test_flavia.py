@@ -125,10 +125,10 @@ def test_source_voltage_writes_convert_kv_to_v():
 def test_magnet_write_uses_flavia_backend_api():
     backend, hardware = make_hardware()
 
-    hardware.set_magnet_current(18.75)
+    hardware.set_magnet_current(19.0)
 
     assert backend.magnet_writes == [
-        18.75
+        19.0
     ]
 
 

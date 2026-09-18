@@ -114,10 +114,6 @@ class SourceMqttWorker(
         self.model = model
         self.host = host
         self.port = int(port)
-        self.configure_on_connect = bool(
-            configure_on_connect
-        )
-
         self._stop_event = (
             threading.Event()
         )
@@ -490,6 +486,9 @@ class KeithleyWorker(
         self.model = model
         self.host = host
         self.port = int(port)
+        self.configure_on_connect = bool(
+            configure_on_connect
+        )
 
         self._stop_event = (
             threading.Event()

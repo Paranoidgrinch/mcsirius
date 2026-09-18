@@ -447,4 +447,3 @@ def maximize_parameter(
         upper=upper,
         config=config,
     )
-

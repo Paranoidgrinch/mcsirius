@@ -219,4 +219,3 @@ def optimize_einzel_at_fixed_magnet(
         einzel_scan=einzel_result,
         final_cup1_score=_cup1_score(hardware),
     )
-

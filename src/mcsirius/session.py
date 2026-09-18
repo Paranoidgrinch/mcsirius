@@ -272,4 +272,3 @@ def run_single_pass(
         final_cup1_score=score,
         converged=True,
     )
-

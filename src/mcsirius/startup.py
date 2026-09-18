@@ -60,7 +60,7 @@ class StartupConfig:
 
     total_time_limit_s: float = 15.0
     final_settle_s: float = 0.25
-    readback_tolerance_kv: float = 0.25
+    readback_tolerance_fraction: float = 0.10
 
     def validate(self) -> None:
         self.ramp.validate()
@@ -89,12 +89,12 @@ class StartupConfig:
 
         if (
             not math.isfinite(
-                self.readback_tolerance_kv
+                self.readback_tolerance_fraction
             )
-            or self.readback_tolerance_kv < 0.0
+            or self.readback_tolerance_fraction < 0.0
         ):
             raise ValueError(
-                "Readback tolerance must be "
+                "Readback tolerance fraction must be "
                 "finite and non-negative."
             )
 
@@ -111,17 +111,31 @@ def _assert_close(
     *,
     actual: float,
     expected: float,
-    tolerance: float,
+    tolerance_fraction: float,
     label: str,
 ) -> None:
     difference = abs(
         actual - expected
     )
 
-    if difference > tolerance:
+    tolerance_kv = (
+        abs(expected)
+        * tolerance_fraction
+    )
+
+    if difference > tolerance_kv:
+        relative_percent = (
+            math.inf
+            if expected == 0.0
+            else 100.0
+            * difference
+            / abs(expected)
+        )
+
         raise RuntimeError(
             f"{label} readback differs from target "
-            f"by {difference:.3f} kV."
+            f"by {difference:.3f} kV "
+            f"({relative_percent:.2f}%)."
         )
 
 
@@ -176,8 +190,8 @@ def prepare_source_for_optimization(
     _assert_close(
         actual=final.sputter_kv,
         expected=target.sputter_kv,
-        tolerance=(
-            config.readback_tolerance_kv
+        tolerance_fraction=(
+            config.readback_tolerance_fraction
         ),
         label="Sputter",
     )
@@ -185,8 +199,8 @@ def prepare_source_for_optimization(
     _assert_close(
         actual=final.extraction_kv,
         expected=target.extraction_kv,
-        tolerance=(
-            config.readback_tolerance_kv
+        tolerance_fraction=(
+            config.readback_tolerance_fraction
         ),
         label="Extraction",
     )
@@ -194,8 +208,8 @@ def prepare_source_for_optimization(
     _assert_close(
         actual=final.einzel_kv,
         expected=target.einzel_kv,
-        tolerance=(
-            config.readback_tolerance_kv
+        tolerance_fraction=(
+            config.readback_tolerance_fraction
         ),
         label="Einzel",
     )

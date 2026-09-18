@@ -152,7 +152,7 @@ def test_readback_tolerance_is_configurable():
         hardware,
         config=StartupConfig(
             final_settle_s=0.0,
-            readback_tolerance_kv=0.2,
+            readback_tolerance_fraction=0.05,
         ),
         sleep=hardware.sleep,
     )
@@ -161,3 +161,43 @@ def test_readback_tolerance_is_configurable():
         result.final_readback.sputter_kv
         == pytest.approx(4.0)
     )
+
+
+def test_ten_percent_startup_readback_tolerance_accepts_observed_offsets():
+    from mcsirius.startup import _assert_close
+
+    _assert_close(
+        actual=3.606,
+        expected=4.0,
+        tolerance_fraction=0.10,
+        label="Sputter",
+    )
+
+    _assert_close(
+        actual=13.310,
+        expected=14.0,
+        tolerance_fraction=0.10,
+        label="Extraction",
+    )
+
+    _assert_close(
+        actual=13.102,
+        expected=14.0,
+        tolerance_fraction=0.10,
+        label="Extraction",
+    )
+
+
+def test_more_than_ten_percent_readback_error_is_rejected():
+    from mcsirius.startup import _assert_close
+
+    with pytest.raises(
+        RuntimeError,
+        match="11.00%",
+    ):
+        _assert_close(
+            actual=12.46,
+            expected=14.0,
+            tolerance_fraction=0.10,
+            label="Extraction",
+        )

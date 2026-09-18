@@ -114,6 +114,9 @@ class SourceMqttWorker(
         self.model = model
         self.host = host
         self.port = int(port)
+        self.configure_on_connect = bool(
+            configure_on_connect
+        )
 
         self._stop_event = (
             threading.Event()
@@ -480,6 +483,7 @@ class KeithleyWorker(
         *,
         host: str = KEITHLEY_HOST,
         port: int = KEITHLEY_PORT,
+        configure_on_connect: bool = True,
     ) -> None:
         super().__init__(daemon=True)
 
@@ -535,7 +539,8 @@ class KeithleyWorker(
             2.0,
         )
 
-        self._configure()
+        if self.configure_on_connect:
+            self._configure()
 
         self.model.update(
             "keithley/connected",
@@ -780,6 +785,8 @@ class StandaloneLiveBackend:
 
     def __init__(
         self,
+        *,
+        configure_keithley: bool = True,
     ) -> None:
         self.model = LiveModel()
 
@@ -792,7 +799,8 @@ class StandaloneLiveBackend:
         )
 
         self.keithley = KeithleyWorker(
-            self.model
+            self.model,
+            configure_on_connect=configure_keithley,
         )
 
         self.magnet = MagnetWorker(
@@ -970,11 +978,13 @@ def probe_live_hardware(
     Connect to the minimum mcsirius hardware set and read its
     current state.
 
-    No source-voltage, magnet-current or Cup-selection command
-    is issued by this probe.
+    No source-voltage, magnet-current, Cup-selection or
+    Keithley-configuration command is issued by this probe.
     """
 
-    backend = StandaloneLiveBackend()
+    backend = StandaloneLiveBackend(
+        configure_keithley=False
+    )
 
     backend.start()
 

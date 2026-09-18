@@ -16,3 +16,6 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[project.scripts]
+mcsirius = "mcsirius.cli:main"

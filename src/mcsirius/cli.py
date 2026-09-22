@@ -9,6 +9,7 @@ from typing import Sequence
 from .runtime import run_simulation
 from .live_backend import probe_live_hardware
 from .live_prepare import prepare_live_machine
+from .peak_map import run_live_peak_map
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -55,6 +56,16 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--live-peak-map",
+        action="store_true",
+        help=(
+            "scan the real analyzing magnet around the "
+            "predicted mass without changing source voltages "
+            "or assigning a mass label to measured peaks"
+        ),
+    )
+
     return parser
 
 
@@ -73,6 +84,93 @@ def main(
             "error: ion mass must be greater than zero"
         )
         return 2
+
+    if args.live_peak_map:
+        try:
+            report = run_live_peak_map(
+                mass_u
+            )
+        except Exception as exc:
+            print()
+            print("mcsirius live peak map")
+            print("======================")
+            print(f"FAILED: {exc}")
+            print()
+            return 1
+
+        result = report.peak_map
+
+        print()
+        print("mcsirius live peak map")
+        print("======================")
+        print(f"Target mass : {mass_u:g} u")
+        print(
+            "Model center: "
+            f"{result.predicted_target_a:.4f} A"
+        )
+        print(
+            "Source      : "
+            f"{report.source_readback.sputter_kv:.3f} / "
+            f"{report.source_readback.extraction_kv:.3f} / "
+            f"{report.source_readback.einzel_kv:.3f} kV"
+        )
+        print()
+
+        print("Predicted neighboring masses")
+        print("----------------------------")
+
+        for item in result.predicted_masses:
+            print(
+                f"m={item.mass_u:7.1f} u  "
+                f"I={item.magnet_current_a:8.4f} A"
+            )
+
+        print()
+        print("Measured map")
+        print("------------")
+        print(
+            "Magnet [A]    Cup 1 [nA]    |Cup 1| [nA]"
+        )
+
+        for sample in result.samples:
+            print(
+                f"{sample.magnet_current_a:10.4f}"
+                f"  {sample.cup_current_a * 1e9:11.3f}"
+                f"  {sample.magnitude_a * 1e9:13.3f}"
+            )
+
+        print()
+        print("Observed local maxima")
+        print("---------------------")
+
+        if not result.observed_peaks:
+            print("none")
+        else:
+            for index, peak in enumerate(
+                result.observed_peaks,
+                start=1,
+            ):
+                print(
+                    f"Peak {index:2d}: "
+                    f"{peak.magnet_current_a:.4f} A  "
+                    f"{peak.cup_current_a * 1e9:.3f} nA"
+                )
+
+        print()
+        print(
+            "No measured peak was assigned a mass label."
+        )
+        print(
+            "Starting magnet: "
+            f"{report.starting_magnet_a:.4f} A"
+        )
+        print(
+            "Restored magnet: "
+            f"{report.restored_magnet_a:.4f} A"
+        )
+        print()
+
+        return 0
 
     if args.live_prepare:
         try:

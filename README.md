@@ -1,6 +1,29 @@
 # mcsirius
 
-Small source-to-Cup-1 beam optimizer for the FLAVIA AMS beamline.
+Small source-to-Cup-1 beam optimizer for the
+[FLAVIA](https://github.com/Paranoidgrinch/FLAVIA-alpha-1.1-Fully-integrated-Laser-Anion-Variables-for-AMS-)
+AMS beamline at CologneAMS — the compact companion of [SIRIUS](https://github.com/Paranoidgrinch/SIRIUS),
+which optimizes the whole beamline from Cup 1 to Cup 6.
+
+[![License](https://img.shields.io/badge/license-GPL--3.0-394B59?style=flat-square)](LICENSE)
+
+## Quick start
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/mcsirius 27 --dry-run        # optimize for mass 27 u against simulated hardware
+.venv/bin/pytest                       # tests run against the simulated machine
+```
+
+Live modes need a running FLAVIA setup and talk to the hardware over MQTT:
+
+| Option | What it does |
+| --- | --- |
+| `--dry-run` | run the optimizer against simulated hardware (currently the default) |
+| `--live-check` | connect and print readbacks, without changing source, magnet or cup selection |
+| `--live-prepare` | move the real machine to the deterministic source and magnet starting point, without optimizing |
+| `--live-peak-map` | scan the real analyzing magnet around the predicted mass, without changing source voltages |
 
 ## Scope
 
@@ -30,6 +53,7 @@ multi-dimensional grid scan.
 
 Hardware access, measurement and optimization logic will remain separate so the
 optimizer can be tested against simulated hardware before controlling FLAVIA.
+
 ## Magnet seed model
 
 The initial analyzing-magnet setpoint is calculated from ion mass and total
@@ -43,6 +67,7 @@ The model uses the same geometry and current/field calibration as FLAVIA:
 
 This value is only the predicted center for the later local magnet search.
 The optimizer will not treat magnet current as an independent global parameter.
+
 ## First optimization stage
 
 The first executable optimization chain is intentionally simple:
@@ -100,3 +125,7 @@ A run stops when either:
 The default limit is three complete cycles with a one-percent relative
 improvement threshold. These values are configuration defaults rather than
 hard machine limits.
+
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE).

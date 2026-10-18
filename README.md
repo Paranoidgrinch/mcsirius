@@ -1,11 +1,9 @@
 # mcsirius
 
-Small source-to-Cup-1 beam optimizer for the
+Small beam optimizer for the section from the ion source to Cup 1 of the
 [FLAVIA](https://github.com/Paranoidgrinch/FLAVIA-alpha-1.1-Fully-integrated-Laser-Anion-Variables-for-AMS-)
-AMS beamline at CologneAMS — the compact companion of [SIRIUS](https://github.com/Paranoidgrinch/SIRIUS),
-which optimizes the whole beamline from Cup 1 to Cup 6.
-
-[![License](https://img.shields.io/badge/license-GPL--3.0-394B59?style=flat-square)](LICENSE)
+AMS beamline at CologneAMS. [SIRIUS](https://github.com/Paranoidgrinch/SIRIUS) covers the whole beamline from
+Cup 1 to Cup 6.
 
 ## Quick start
 
@@ -128,4 +126,4 @@ hard machine limits.
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+GPL-3.0, see [LICENSE](LICENSE).
